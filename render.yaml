@@ -1,0 +1,39 @@
+previewsEnabled: true
+services:
+  - type: web
+    name: lecturehelper-staging
+    env: python
+    autoDeploy: true
+    buildCommand: |
+      echo "=== Starting Build Process ==="
+      python -m pip install --upgrade pip
+      pip install -r backend/requirements.txt || { echo "Failed to install requirements"; exit 1; }
+
+      echo "=== Creating directories ==="
+      mkdir -p /opt/render/project/src/data/embeddings
+      mkdir -p /opt/render/project/src/data/CS410Transcripts/vtt
+
+      echo "=== Copying application files ==="
+      cp -rv backend/app.py backend/config.py backend/requirements.txt /opt/render/project/src/
+      cp -rv backend/routes backend/services backend/utils /opt/render/project/src/
+      cp -rv backend/CS410Transcripts /opt/render/project/src/data/CS410Transcripts
+      cp backend/data/embeddings/embeddings.jsonl /opt/render/project/src/data/embeddings/
+
+    startCommand: |
+      cd /opt/render/project/src && gunicorn 'app:create_app()' --workers 4 --timeout 120 --log-level debug --bind 0.0.0.0:$PORT --factory
+
+    envVars:
+      - key: PYTHONPATH
+        value: /opt/render/project/src
+      - key: DATA_DIR
+        value: /opt/render/project/src/data/embeddings
+      - key: VTT_DIRECTORY
+        value: /opt/render/project/src/data/CS410Transcripts/vtt
+      - key: OPENAI_API_KEY
+        sync: false
+
+    healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
